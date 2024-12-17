@@ -1,0 +1,102 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>BMS VOLTAGE DATA</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0"></script> <!-- Include jQuery -->
+    <script src="https://canvasjs.com/assets/script/jquery-1.11.1.min.js"></script>
+    <script src="https://cdn.canvasjs.com/jquery.canvasjs.min.js"></script>
+</head>
+<body>
+    <div id="chartContainer" style="height: 370px; width: 100%;"></div>
+
+    </br>   
+     <!-- Button to trigger the delete operation -->
+    <button onclick="deleteData()">Delete All Data</button>
+
+    <script>
+        window.onload = function() {
+            var dataPoints = [];
+            var chart = new CanvasJS.Chart("chartContainer", {
+                theme: "light2",
+                title: {
+                    text: "Live Data"
+                },
+                data: [{
+                    type: "line",
+                    yValueFormatString: "##.##V",
+                    indexLabel: "{y}",
+                    dataPoints: dataPoints
+                }]
+            });
+
+            var xValue = 0;  // Initial x value
+            var maxDataPoints = 10; // Maximum number of data points visible at a time
+            var lastFetchedId = 0; // Track the last fetched record ID
+
+            // Function to fetch the latest record from PHP using AJAX
+            function fetchLatestRecord() {
+                $.ajax({
+                    url: 'fetch_data.php', // Path to your PHP script
+                    type: 'GET',
+                    data: { last_id: lastFetchedId }, // Send last fetched ID to the server
+                    success: function(data) {
+                        var latestRecord = JSON.parse(data);
+                        
+                        if (latestRecord && latestRecord.id) {
+                            lastFetchedId = latestRecord.id; // Update last fetched ID
+                            var newXValue = xValue + 1;
+                            var newYValue = parseFloat(latestRecord.voltage); // Voltage from the latest record
+                          
+                            console.log("Fetched Voltage:", newYValue);
+
+                            // Add the new data point
+                            dataPoints.push({ x: newXValue, y: parseFloat(newYValue) });
+                            xValue = newXValue;
+
+                            // Shift if the dataPoints array exceeds the maximum limit
+                            if (dataPoints.length > maxDataPoints) {
+                                dataPoints.shift(); // Remove the oldest data point
+                            }
+
+                            chart.render(); // Update the chart
+                        }
+                    },
+                    error: function(error) {
+                        console.error('Error fetching data from PHP:', error);
+                    }
+                });
+           }
+
+            // Function to continuously fetch data
+            function updateData() {
+                fetchLatestRecord(); // Fetch one record at a time
+                setTimeout(updateData, 1000); // Fetch data every second
+            }
+
+            // Start the data update process
+            updateData();
+        }
+    </script>
+
+
+    <script>
+        function deleteData() {
+            if (confirm("Are you sure you want to delete all records?")) {
+                // Send an AJAX request to delete_data.php
+                const xhr = new XMLHttpRequest();
+                xhr.open("GET", "delete-data.php", true); // Make a GET request to delete_data.php
+
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        alert(xhr.responseText);  // Show success message returned from PHP
+                    }
+                };
+
+                xhr.send();  // Send the request
+            }
+        }
+    </script>
+</body>
+</html>
+
+

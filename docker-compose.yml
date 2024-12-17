@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  apache:
+    image: php:7.4-apache
+    ports:
+      - "8080:80"
+    volumes:
+      - ./www:/var/www/html
+    networks:
+      - app-network
+    environment:
+      - MYSQLI_ENABLED=1
+    # Install MySQLi extension
+    command: bash -c "docker-php-ext-install mysqli && apache2-foreground"
+
+  mysql:
+    image: mysql:5.7
+    environment:
+      MYSQL_ROOT_PASSWORD: smartkosh_12345
+      MYSQL_DATABASE: smartkosh_database
+      MYSQL_USER: smartkosh
+      MYSQL_PASSWORD: smartkosh_123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - app-network
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      MYSQL_ROOT_PASSWORD: smartkosh_12345
+    ports:
+      - "8081:80"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+

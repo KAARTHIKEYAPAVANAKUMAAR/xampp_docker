@@ -1,0 +1,180 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <title>BMS Data Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0"></script> <!-- Include jQuery -->
+    <script src="https://cdn.canvasjs.com/jquery.canvasjs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center; /* Center align content */
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #0078D4; /* Header background color */
+            color: white; /* Header text color */
+            padding: 20px 0;
+            font-size: 24px;
+            font-weight: bold;
+        }
+        .chart-container {
+            display: inline-block; /* Make the charts inline-block for centering */
+            margin: 20px auto; /* Add spacing between charts */
+            text-align: center;
+        }
+        #chartContainer1, #chartContainer2, #chartContainer3 {
+            height: 300px; /* Reduced height */
+            width: 80%; /* Reduced width */
+        }
+        button {
+            margin: 20px 0;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #0078D4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #005fa3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <header>
+        BMS Data Monitoring
+    </header>
+
+    <!-- Divs for three charts -->
+    <div class="chart-container" id="chartContainer1"></div> <!-- Voltage Chart -->
+    <div class="chart-container" id="chartContainer2"></div> <!-- Current Chart -->
+    <div class="chart-container" id="chartContainer3"></div> <!-- Temperature Chart -->
+
+    <br/>
+    <!-- Button to trigger the delete operation -->
+    <button onclick="deleteData()">Delete All Data</button>
+
+    <script>
+          
+       window.onload = function () {
+    const charts = [];
+    const dataPointsArray = [[], [], []]; // Data points for each chart
+    const maxDataPoints = 10; // Maximum number of data points visible at a time
+    let lastFetchedId = [0, 0, 0]; // Last fetched record ID for each chart
+    let xValues = [0, 0, 0]; // X values for each chart
+
+    const chartTitles = ["Voltage Data", "Current Data", "Temperature Data"];
+    const yValueFormats = ["##.##V", "##.##A", "##.#°C"];
+    const dataColumns = ["voltage", "current", "temperature"];
+
+    // Initialize charts
+    for (let i = 1; i <= 3; i++) {
+        const chart = new CanvasJS.Chart(`chartContainer${i}`, {
+            theme: "light2",
+            title: { text: chartTitles[i - 1] },
+            data: [{
+                type: "line",
+                yValueFormatString: yValueFormats[i - 1],
+                indexLabel: "{y}",
+                dataPoints: dataPointsArray[i - 1]
+            }]
+        });
+        chart.render();
+        charts.push(chart);
+    }
+
+    // Fetch initial data for a chart
+    function fetchInitialData(chartIndex, columnName) {
+        $.ajax({
+            url: 'fetch_latest_cvt.php',
+            type: 'GET',
+            data: { initial: true, column: columnName, limit: maxDataPoints },
+            success: function (data) {
+                const records = JSON.parse(data);
+                if (records.length) {
+                    records.forEach(record => {
+                        const newXValue = ++xValues[chartIndex];
+                        const newYValue = parseFloat(record[columnName]);
+                        dataPointsArray[chartIndex].push({ x: newXValue, y: newYValue });
+                        lastFetchedId[chartIndex] = record.id;
+                    });
+                    charts[chartIndex].render();
+                }
+            },
+            error: function (error) {
+                console.error(`Error initializing data for ${chartTitles[chartIndex]}:`, error);
+            }
+        });
+    }
+
+    // Fetch the latest record for real-time updates
+    function fetchLatestRecord(chartIndex, columnName) {
+        $.ajax({
+            url: 'fetch_latest_cvt.php',
+            type: 'GET',
+            data: { last_id: lastFetchedId[chartIndex], column: columnName },
+            success: function (data) {
+                const latestRecord = JSON.parse(data);
+                if (latestRecord && latestRecord.id) {
+                    lastFetchedId[chartIndex] = latestRecord.id;
+                    const newXValue = ++xValues[chartIndex];
+                    const newYValue = parseFloat(latestRecord[columnName]);
+
+                    dataPointsArray[chartIndex].push({ x: newXValue, y: newYValue });
+                    if (dataPointsArray[chartIndex].length > maxDataPoints) {
+                        dataPointsArray[chartIndex].shift(); // Remove the oldest point
+                    }
+
+                    charts[chartIndex].render();
+                }
+            },
+            error: function (error) {
+                console.error(`Error fetching data for ${chartTitles[chartIndex]}:`, error);
+            }
+        });
+    }
+
+    // Initialize all charts with recent data
+    function initializeCharts() {
+        fetchInitialData(0, "voltage");
+        fetchInitialData(1, "current");
+        fetchInitialData(2, "temperature");
+    }
+
+    // Update all charts with new data
+    function updateAllCharts() {
+        fetchLatestRecord(0, "voltage");
+        fetchLatestRecord(1, "current");
+        fetchLatestRecord(2, "temperature");
+        setTimeout(updateAllCharts, 1000);
+    }
+
+    // Start the process
+    initializeCharts();
+    setTimeout(updateAllCharts, 2000); // Start real-time updates after initialization
+};
+
+      
+      
+        // Function to delete all records
+        function deleteData() {
+            if (confirm("Are you sure you want to delete all records?")) {
+                const xhr = new XMLHttpRequest();
+                xhr.open("GET", "delete-cvt-data.php", true);
+
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        alert(xhr.responseText); // Show success message returned from PHP
+                    }
+                };
+
+                xhr.send(); // Send the request
+            }
+        }
+    </script>
+</body>
+</html>
+

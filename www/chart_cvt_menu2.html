@@ -1,0 +1,385 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>BMS Data Monitoring</title>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0"></script> <!-- Include jQuery -->
+    <script src="https://cdn.canvasjs.com/jquery.canvasjs.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scroll */
+        }
+        header {
+            background-color: #0078D4; /* Header background color */
+            color: white; /* Header text color */
+            padding: 20px 0;
+            font-size: 30px;
+            font-weight: bold;
+            text-align: center;
+            position: relative;
+        }
+
+        .status-icon {
+            position: absolute;
+            right: 15px; 
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 20px; /* Gap between icons */
+            align-items: center; /* Align icons vertically */
+        }
+
+        .db-status-icon {
+            position: relative;
+            width: 60px;
+            height: 60px;
+            border-radius: 6px;
+        }
+
+        .esp-status-icon {
+            position: relative;
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+        }
+
+        
+        .db-status-icon .tooltiptext,
+        .esp-status-icon .tooltiptext{
+            visibility: hidden;
+            width: 150px;
+            background-color: black;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 2px 0;
+            font-size: 15px;
+  
+            /* Position the tooltip */
+            position: absolute;
+            z-index: 1;
+            top: 100%;
+            left: 50%;
+            margin-left: -110px;
+        }
+
+        .db-status-icon:hover  .tooltiptext,
+        .esp-status-icon:hover .tooltiptext {
+            visibility: visible;
+        }
+
+
+        .menu-icon {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            font-size: 35px;
+            cursor: pointer;
+        }
+        .side-nav {
+            height: 100%; /* Full-height */
+            width: 0;
+            position: fixed;
+            z-index: 1;
+            top: 0;
+            left: 0;
+            background-color: #0078D4;
+            overflow-x: hidden;
+            transition: 0.5s; /* Animation for slide-in */
+            padding-top: 60px;
+        }
+        .side-nav a {
+            padding: 20px 20px 20px 40px;
+            text-decoration: none;
+            font-size: 28px;
+            color: white;
+            display: block;
+            transition: 0.3s;
+        }
+        .side-nav a:hover {
+            background-color: #005fa3;
+        }
+        .side-nav .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px 15px;
+            font-size: 30px;
+            margin-left: 50px;
+            color: white;
+        }
+        
+         #topscrollBtn {
+            display: none;
+            position: fixed;
+            bottom: 20px; 
+            right: 30px;
+            z-index: 99;
+            font-size: 18px;
+            border: none;
+            outline: none;
+            background-color: red;
+            color: white;
+            cursor: pointer;
+            padding: 15px;
+            border-radius: 4px;
+          }
+
+        #topscrollBtn:hover {
+            background-color: #555;
+          }
+
+        .chart-container {
+            display: flex; /* Make the charts flex for centering */
+            margin: 70px auto; /* Add spacing between charts */
+            text-align: center;
+        }
+        #chartContainer1, #chartContainer2, #chartContainer3 {
+            height: 300px; /* Reduced height */
+            width: 75%; /* Reduced width */
+        }
+        button {
+            margin: 20px auto;
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #0078D4;
+            color: white;
+            border: none;
+            display: block;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #005fa3;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <header>
+      <div class="menu-icon" onclick="openNav()">&#9776;</div> <!-- Hamburger Icon -->
+        BMS Data Monitoring
+        <div class="status-icon">
+            <div class="esp-status-icon">
+                <img id="espStatusIcon" class="esp-status-icon" src="esp_disconnect.png" alt="DB Status" /> 
+                <span id="espToolTipText" class="tooltiptext">ESP Disconnected</span>
+            </div>
+            <div class="db-status-icon">
+                <img id="dbStatusIcon" class="db-status-icon" src="cloud_disconnect.png" alt="DB Status" />
+                <span id="dbToolTipText" class="tooltiptext">Cloud Disconnected</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Side Navigation -->
+    <div id="mySideNav" class="side-nav">
+        <a href="javascript:void(0)" class="close-btn" onclick="closeNav()">X</a>
+        <a href="chart_series_cvt.html">Series</a>
+        <a href="chart_parallel_cvt.html">Parallel</a>
+        <a href="chart_individual_cvt.html">Individual</a>
+    </div>
+
+
+    <!-- Divs for three charts -->
+    <div class="chart-container" id="chartContainer1"></div> <!-- Voltage Chart -->
+    <div class="chart-container" id="chartContainer2"></div> <!-- Current Chart -->
+    <div class="chart-container" id="chartContainer3"></div> <!-- Temperature Chart -->
+
+    <!-- Top scroll button -->
+    <button onclick="topFunction()" id="topscrollBtn" title="Go to top">Top</button>
+
+    <br/>
+    <!-- Button to trigger the delete operation -->
+    <button onclick="deleteData()">Delete All Data</button>
+
+
+    <script>
+        window.onload = function() {
+            // Initialize data points and charts
+            const charts = [];
+            const dataPointsArray = [[], [], []]; // Data points for each chart
+            const maxDataPoints = 10; // Maximum number of data points visible at a time
+            let lastFetchedId = [0, 0, 0]; // Last fetched record ID for each chart
+            let xValues = [0, 0, 0]; // Initial x values for each chart
+
+            // Chart titles
+            const chartTitles = ["Voltage Data", "Current Data", "Temperature Data"];
+            const yValueFormats = ["##.##V", "##.##A", "##.#°C"];
+            const dataColumns = ["voltage", "current", "temperature"]; // Corresponding column names
+
+            // Initialize charts
+            for (let i = 1; i <= 3; i++) {
+                const chart = new CanvasJS.Chart(`chartContainer${i}`, {
+                    theme: "light2",
+                    title: {
+                        text: chartTitles[i - 1] // Dynamic title
+                    },
+                    data: [{
+                        type: "line",
+                        yValueFormatString: yValueFormats[i - 1], // Format based on data type
+                        indexLabel: "{y}",
+                        dataPoints: dataPointsArray[i - 1]
+                    }]
+                });
+                chart.render();
+                charts.push(chart);
+            }
+
+            // Fetch latest record for a specific column
+            function fetchLatestRecord(chartIndex, columnName) {
+                $.ajax({
+                    url: 'fetch_cvt_data.php', // Path to your PHP script
+                    type: 'GET',
+                    data: { last_id: lastFetchedId[chartIndex], column: columnName }, // Send last fetched ID and column name to the server
+                    success: function(data) {
+                        const latestRecord = JSON.parse(data);
+                        if (latestRecord && latestRecord.id) {
+                            lastFetchedId[chartIndex] = latestRecord.id; // Update last fetched ID
+                            const newXValue = xValues[chartIndex] + 1;
+                            const newYValue = parseFloat(latestRecord[columnName]); // Value from the specific column
+
+                            console.log(`${chartTitles[chartIndex]} - Fetched Value:`, newYValue);
+
+                            // Add the new data point
+                            dataPointsArray[chartIndex].push({ x: newXValue, y: newYValue });
+                            xValues[chartIndex] = newXValue;
+
+                            // Shift if the dataPoints array exceeds the maximum limit
+                            if (dataPointsArray[chartIndex].length > maxDataPoints) {
+                                dataPointsArray[chartIndex].shift(); // Remove the oldest data point
+                            }
+
+                            charts[chartIndex].render(); // Update the chart
+                        }
+                    },
+                    error: function(error) {
+                        console.error(`Error fetching data for ${chartTitles[chartIndex]}:`, error);
+                    }
+                });
+            }
+
+            // Update all charts
+            function updateAllCharts() {
+                fetchLatestRecord(0, "voltage"); // Fetch voltage data for Chart 1
+                fetchLatestRecord(1, "current"); // Fetch current data for Chart 2
+                fetchLatestRecord(2, "temperature"); // Fetch temperature data for Chart 3
+                setTimeout(updateAllCharts, 1000); // Fetch data every second
+            }
+
+            // Start the data update process
+            updateAllCharts();
+            
+            // Function to check database connectivity
+            function checkDatabaseConnection() {
+                $.ajax({
+                    url: 'check-db-connection.php',
+                    type: 'GET',
+                    success: function (status) {
+                        const dbStatusIcon = document.getElementById("dbStatusIcon");
+                        if (status.trim() === "connected") {
+                            dbStatusIcon.src = "cloud_connect.png";
+                            dbStatusIcon.alt = "Database Connected";
+                            dbToolTipText.textContent = "Cloud Connected";
+                        } else {
+                            dbStatusIcon.src = "cloud_disconnect.png";
+                            dbStatusIcon.alt = "Database Disconnected";
+                            dbToolTipText.textContent = "Cloud Disconnected";
+                        }
+                    },
+                    error: function () {
+                        const dbStatusIcon = document.getElementById("dbStatusIcon");
+                        dbStatusIcon.src = "cloud_disconnect.png";
+                        dbStatusIcon.alt = "Database Disconnected";
+                        dbToolTipText.textContent = "Cloud Disconnected";
+                    }
+                });
+            }
+
+            // Check database connectivity every 5 seconds
+            setInterval(checkDatabaseConnection, 5000);
+            checkDatabaseConnection(); // Initial check for cloud
+
+
+            // Function to check ESP connectivity
+            function checkESPConnection() {
+                $.ajax({
+                    url: 'check-esp-connection.php',
+                    type: 'GET',
+                    success: function (status) {
+                        const espStatusIcon = document.getElementById("espStatusIcon");
+                        if (status.trim() === "connected") {
+                            espStatusIcon.src = "esp_connect.png";
+                            espStatusIcon.alt = "ESP Connected";
+                            espToolTipText.textContent = "ESP Connected";
+                        } else {
+                            espStatusIcon.src = "esp_disconnect.png";
+                            espStatusIcon.alt = "ESP Disconnected";
+                            espToolTipText.textContent = "ESP Disconnected";
+                        }
+                    },
+                    error: function () {
+                        const espStatusIcon = document.getElementById("espStatusIcon");
+                        espStatusIcon.src = "esp_disconnect.png";
+                        espStatusIcon.alt = "ESP Disconnected";
+                        espToolTipText.textContent = "ESP Disconnected";
+                    }
+                });
+            }
+
+            // Check ESP connectivity every 5 seconds
+            setInterval(checkESPConnection, 5000);
+            checkESPConnection(); // Initial check for cloud
+
+        };
+
+        // Function to open the side navigation
+        function openNav() {
+            document.getElementById("mySideNav").style.width = "250px";
+        }
+
+        // Function to close the side navigation
+        function closeNav() {
+            document.getElementById("mySideNav").style.width = "0";
+        }
+
+
+        // When the user scrolls down 100px from the top of the document, show the button
+        window.onscroll = function() {scrollFunction()};
+
+        function scrollFunction() {
+            if (document.body.scrollTop > 100 || document.documentElement.scrollTop > 100) {
+               document.getElementById("topscrollBtn").style.display = "block";
+             } else {
+                document.getElementById("topscrollBtn").style.display = "none";
+         }
+        }
+
+        // When the user clicks on the button, scroll to the top of the document
+        function topFunction() {
+            document.body.scrollTop = 0;
+            document.documentElement.scrollTop = 0;
+        }
+
+
+        // Function to delete all records
+        function deleteData() {
+            if (confirm("Are you sure you want to delete all records?")) {
+                const xhr = new XMLHttpRequest();
+                xhr.open("GET", "delete-cvt-data.php", true);
+
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState == 4 && xhr.status == 200) {
+                        alert(xhr.responseText); // Show success message returned from PHP
+                    }
+                };
+
+                xhr.send(); // Send the request
+            }
+        }
+    </script>
+</body>
+</html>
+
